@@ -59,7 +59,14 @@ use crate::mappings::{colors::to_alac_rgb, keys::to_esc_str};
 
 actions!(
     terminal,
-    [Clear, Copy, Paste, ShowCharacterPalette, SearchTest,]
+    [
+        Clear,
+        Copy,
+        Paste,
+        ShowCharacterPalette,
+        SearchTest,
+        ToggleViMode
+    ]
 );
 
 ///Scrolling is unbearably sluggish by default. Alacritty supports a configurable
@@ -110,6 +117,7 @@ enum InternalEvent {
     ColorRequest(usize, Arc<dyn Fn(Rgb) -> String + Sync + Send + 'static>),
     Resize(TerminalSize),
     Clear,
+    ToggleViMode,
     // FocusNextMatch,
     Scroll(AlacScroll),
     ScrollToAlacPoint(AlacPoint),
@@ -402,6 +410,7 @@ impl TerminalBuilder {
             hovered_word: false,
             url_regex,
             word_regex,
+            vi_mode: false,
         };
 
         Ok(TerminalBuilder {
@@ -539,6 +548,7 @@ pub enum SelectionPhase {
 pub struct Terminal {
     pty_tx: Notifier,
     term: Arc<FairMutex<Term<ZedListener>>>,
+    vi_mode: bool,
     events: VecDeque<InternalEvent>,
     /// This is only used for mouse mode cell change detection
     last_mouse: Option<(AlacPoint, AlacDirection)>,
@@ -696,6 +706,9 @@ impl Terminal {
                 }
 
                 cx.emit(Event::Wakeup);
+            }
+            InternalEvent::ToggleViMode => {
+                term.toggle_vi_mode();
             }
             InternalEvent::Scroll(scroll) => {
                 term.scroll_display(*scroll);
@@ -935,6 +948,15 @@ impl Terminal {
 
     pub fn clear(&mut self) {
         self.events.push_back(InternalEvent::Clear)
+    }
+
+    pub fn toggle_vi_mode(&mut self) {
+        self.vi_mode = !self.vi_mode;
+        self.events.push_back(InternalEvent::ToggleViMode);
+    }
+
+    pub fn is_in_vi_mode(&self) -> bool {
+        self.vi_mode
     }
 
     ///Resize the terminal and the PTY.

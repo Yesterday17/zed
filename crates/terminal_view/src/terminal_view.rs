@@ -19,7 +19,7 @@ use terminal::{
         term::{search::RegexSearch, TermMode},
     },
     terminal_settings::{TerminalBlink, TerminalSettings, WorkingDirectory},
-    Clear, Copy, Event, MaybeNavigationTarget, Paste, ShowCharacterPalette, Terminal,
+    Clear, Copy, Event, MaybeNavigationTarget, Paste, ShowCharacterPalette, Terminal, ToggleViMode,
 };
 use terminal_element::TerminalElement;
 use ui::{h_flex, prelude::*, ContextMenu, Icon, IconName, Label};
@@ -389,6 +389,11 @@ impl TerminalView {
         cx.notify();
     }
 
+    fn toggle_vi_mode(&mut self, _: &ToggleViMode, cx: &mut ViewContext<Self>) {
+        self.terminal.update(cx, |term, _| term.toggle_vi_mode());
+        cx.notify();
+    }
+
     pub fn should_show_cursor(&self, focused: bool, cx: &mut gpui::ViewContext<Self>) -> bool {
         //Don't blink the cursor when not focused, blinking is disabled, or paused
         if !focused
@@ -673,6 +678,10 @@ impl TerminalView {
         self.pause_cursor_blinking(cx);
 
         self.terminal.update(cx, |term, cx| {
+            if term.is_in_vi_mode() {
+                return false;
+            }
+
             term.try_keystroke(
                 &event.keystroke,
                 TerminalSettings::get_global(cx).option_as_meta,
@@ -712,6 +721,7 @@ impl Render for TerminalView {
             .on_action(cx.listener(TerminalView::clear))
             .on_action(cx.listener(TerminalView::show_character_palette))
             .on_action(cx.listener(TerminalView::select_all))
+            .on_action(cx.listener(TerminalView::toggle_vi_mode))
             .on_key_down(cx.listener(Self::key_down))
             .on_mouse_down(
                 MouseButton::Right,
