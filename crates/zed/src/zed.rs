@@ -163,6 +163,8 @@ pub fn initialize_workspace(app_state: Arc<AppState>, cx: &mut AppContext) {
                 workspace_handle.clone(),
                 cx.clone(),
             );
+            let search_panel =
+                search::search_panel::SearchPanel::load(workspace_handle.clone(), cx.clone());
             let (
                 project_panel,
                 terminal_panel,
@@ -170,6 +172,7 @@ pub fn initialize_workspace(app_state: Arc<AppState>, cx: &mut AppContext) {
                 channels_panel,
                 chat_panel,
                 notification_panel,
+                search_panel,
             ) = futures::try_join!(
                 project_panel,
                 terminal_panel,
@@ -177,6 +180,7 @@ pub fn initialize_workspace(app_state: Arc<AppState>, cx: &mut AppContext) {
                 channels_panel,
                 chat_panel,
                 notification_panel,
+                search_panel,
             )?;
 
             workspace_handle.update(&mut cx, |workspace, cx| {
@@ -186,6 +190,7 @@ pub fn initialize_workspace(app_state: Arc<AppState>, cx: &mut AppContext) {
                 workspace.add_panel(channels_panel, cx);
                 workspace.add_panel(chat_panel, cx);
                 workspace.add_panel(notification_panel, cx);
+                workspace.add_panel(search_panel, cx);
                 cx.focus_self();
             })
         })
@@ -300,6 +305,13 @@ pub fn initialize_workspace(app_state: Arc<AppState>, cx: &mut AppContext) {
                  _: &collab_ui::chat_panel::ToggleFocus,
                  cx: &mut ViewContext<Workspace>| {
                     workspace.toggle_panel_focus::<collab_ui::chat_panel::ChatPanel>(cx);
+                },
+            )
+            .register_action(
+                |workspace: &mut Workspace,
+                 _: &search::search_panel::ToggleFocus,
+                 cx: &mut ViewContext<Workspace>| {
+                    workspace.toggle_panel_focus::<search::search_panel::SearchPanel>(cx);
                 },
             )
             .register_action(

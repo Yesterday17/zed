@@ -12,6 +12,7 @@ mod history;
 mod mode;
 pub mod project_search;
 pub(crate) mod search_bar;
+pub mod search_panel;
 
 pub fn init(cx: &mut AppContext) {
     menu::init();
