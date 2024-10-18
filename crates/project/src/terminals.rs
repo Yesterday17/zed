@@ -68,8 +68,6 @@ impl Project {
                     .await?;
                 println!("!!!request done");
 
-                println!("!!!pty done");
-
                 let terminal = TerminalBuilder::new_remote(
                     None,
                     terminal_settings::AlternateScroll::Off,
@@ -77,7 +75,6 @@ impl Project {
                     pty,
                 )?;
 
-                println!("!!!terminal created");
                 let terminal_handle = cx
                     .new_model(|cx| terminal.subscribe(cx))
                     .map(|terminal_handle| terminal_handle);
@@ -89,7 +86,6 @@ impl Project {
                     })?;
                 }
 
-                println!("!!!terminal model created");
                 terminal_handle
             })
         } else {
@@ -196,121 +192,12 @@ impl Project {
     }
 
     pub fn create_headless_terminal(&mut self, cx: &mut ModelContext<Self>) -> anyhow::Result<()> {
-        println!("create_headless_terminal");
         let rpc = self.client();
 
         let project_id = self.remote_id().unwrap();
 
         let terminal = HeadlessTerminal::new(None, None)?;
         let cmd = CommandBuilder::new("bash");
-
-        // let task: Task<anyhow::Result<()>> = cx.spawn(|_, cx| async move {
-        //     let tty = Arc::new(Mutex::new(terminal.tty));
-        //     let poll = terminal.poll.clone();
-        //     let mut buffer = [0; 1024];
-
-        //     let mut events = Events::with_capacity(NonZeroUsize::new(1024).unwrap());
-
-        //     'event_loop: loop {
-        //         // Wakeup the event loop when a synchronized update timeout was reached.
-        //         events.clear();
-        //         if let Err(err) = poll.wait(&mut events, Some(Duration::from_secs(2))) {
-        //             match err.kind() {
-        //                 ErrorKind::Interrupted => continue,
-        //                 _ => {
-        //                     break 'event_loop;
-        //                 }
-        //             }
-        //         }
-
-        //         // Handle synchronized update timeout.
-        //         if events.is_empty() {
-        //             // state.parser.stop_sync(&mut *self.terminal.lock());
-        //             // self.event_proxy.send_event(Event::Wakeup);
-        //             continue;
-        //         }
-
-        //         for event in events.iter() {
-        //             match event.key {
-        //                 0 => {
-        //                     if event.is_interrupt() {
-        //                         // Don't try to do I/O on a dead PTY.
-        //                         continue;
-        //                     }
-
-        //                     if event.readable {
-        //                         let tty = tty.clone();
-        //                         let n = smol::unblock(move || {
-        //                             tty.lock().unwrap().reader().read(&mut buffer)
-        //                         })
-        //                         .await;
-        //                         if let Err(e) = n {
-        //                             if let ErrorKind::Interrupted | ErrorKind::WouldBlock = e.kind()
-        //                             {
-        //                                 continue;
-        //                             } else {
-        //                                 break;
-        //                             }
-        //                         }
-
-        //                         let n = n.unwrap();
-        //                         if n == 0 {
-        //                             break;
-        //                         }
-
-        //                         println!("!!!Read {} bytes", n);
-        //                         rpc.send(proto::UpdateRemoteTerminal {
-        //                             terminal_id: 0,
-        //                             project_id,
-        //                             data: buffer[..n].to_vec(),
-        //                         })?;
-        //                         // if let Err(err) = self.pty_read(&mut state, &mut buf, pipe.as_mut())
-        //                         // {
-        //                         //     // On Linux, a `read` on the master side of a PTY can fail
-        //                         //     // with `EIO` if the client side hangs up.  In that case,
-        //                         //     // just loop back round for the inevitable `Exited` event.
-        //                         //     // This sucks, but checking the process is either racy or
-        //                         //     // blocking.
-        //                         //     #[cfg(target_os = "linux")]
-        //                         //     if err.raw_os_error() == Some(libc::EIO) {
-        //                         //         continue;
-        //                         //     }
-
-        //                         //     error!("Error reading from PTY in event loop: {}", err);
-        //                         //     break 'event_loop;
-        //                         // }
-        //                     }
-        //                 }
-        //                 _ => (),
-        //             }
-        //         }
-        //     }
-
-        //     // loop {
-        //     //     let tty = tty.clone();
-        //     //     let n = smol::unblock(move || tty.lock().unwrap().reader().read(&mut buffer)).await;
-        //     //     if let Err(e) = n {
-        //     //         if let ErrorKind::Interrupted | ErrorKind::WouldBlock = e.kind() {
-        //     //             continue;
-        //     //         } else {
-        //     //             break;
-        //     //         }
-        //     //     }
-
-        //     //     let n = n.unwrap();
-        //     //     if n == 0 {
-        //     //         break;
-        //     //     }
-
-        //     //     println!("!!!Read {} bytes", n);
-        //     //     rpc.send(proto::UpdateRemoteTerminal {
-        //     //         terminal_id: 0,
-        //     //         project_id,
-        //     //         data: buffer[..n].to_vec(),
-        //     //     })?;
-        //     // }
-        //     Ok(())
-        // });
 
         let pair = terminal.pair;
         let reader = pair.master.try_clone_reader()?;
@@ -326,7 +213,6 @@ impl Project {
                     break;
                 }
 
-                println!("!!!Read {} bytes", n);
                 rpc.send(proto::UpdateRemoteTerminal {
                     terminal_id: 0,
                     project_id,
@@ -338,21 +224,18 @@ impl Project {
         read.detach_and_log_err(cx);
 
         let (input_tx, mut input_rx) = mpsc::unbounded();
-        let write = cx.spawn(|project, mut cx| async move {
-            project
-                .update(&mut cx, |project, _| {
-                    project.terminals.remote_handles.insert(0, input_tx);
-                })
-                .unwrap();
+        let write: Task<anyhow::Result<()>> = cx.spawn(|project, mut cx| async move {
+            project.update(&mut cx, |project, _| {
+                project.terminals.remote_handles.insert(0, input_tx);
+            })?;
 
             loop {
-                let input = input_rx.next().await.unwrap();
-                writer.write_all(&input).unwrap();
+                if let Some(input) = input_rx.next().await {
+                    writer.write_all(&input)?;
+                }
             }
         });
-        write.detach();
-        // let mut reader = pair.master.try_clone_reader()?;
-        // writeln!(pair.master.take_writer()?, "ls -l\r\n")?;
+        write.detach_and_log_err(cx);
 
         Ok(())
     }

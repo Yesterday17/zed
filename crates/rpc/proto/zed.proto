@@ -235,13 +235,13 @@ message Envelope {
         RejoinRemoteProjectsResponse rejoin_remote_projects_response = 187;
 
         RemoteProjectsUpdate remote_projects_update = 193;
-        ValidateRemoteProjectRequest validate_remote_project_request = 194; // Current max
+        ValidateRemoteProjectRequest validate_remote_project_request = 194;
         DeleteDevServer delete_dev_server = 195;
 
         CreateRemoteTerminal create_remote_terminal = 196;
         CreateRemoteTerminalResponse create_remote_terminal_response = 197;
         UpdateRemoteTerminal update_remote_terminal = 198;
-        InputRemoteTerminal input_remote_terminal = 199;
+        InputRemoteTerminal input_remote_terminal = 199; // Current max
     }
 
     reserved 158 to 161;
